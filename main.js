@@ -1,3 +1,41 @@
+const bootLines = [
+  "Loading... Unpacking Ennui █▒▒▒",
+  "[OK] Initialising Toasting Module... Crumpets warmed",
+  "[WARN] Tuning sarcasm levels... dangerously high",
+  "[OK] Mounting Tea Protocol v2.1... stirred, not shaken",
+  "[OK] Generating existential dread table… done",
+  "[OK] Calibrating disappointment metrics... success",
+  "[BOOT] (break)out of time loaded.",
+];
+
+const bootPre = document.getElementById("boot-lines");
+const bootPrompt = document.getElementById("boot-prompt");
+
+let currentLine = 0;
+
+function showNextBootLine() {
+  if (currentLine < bootLines.length) {
+    bootPre.textContent += bootLines[currentLine++] + "\n";
+    setTimeout(showNextBootLine, 600);
+  } else {
+    bootPrompt.classList.remove("hidden");
+    document.addEventListener("keydown", startGame);
+    document.addEventListener("click", startGame);
+    document.addEventListener("touchstart", startGame);
+  }
+}
+
+function startGame() {
+  document.getElementById("boot-screen").classList.add("hidden");
+  document.getElementById("game").classList.remove("hidden");
+  document.removeEventListener("keydown", startGame);
+  document.removeEventListener("click", startGame);
+  document.removeEventListener("touchstart", startGame);
+  initGame(); // Call main game init
+}
+
+showNextBootLine();
+
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -253,3 +291,38 @@ document.addEventListener("keydown", e => {
 // Touch
 document.getElementById("left-btn").addEventListener("touchstart", () => movePaddle("left"));
 document.getElementById("right-btn").addEventListener("touchstart", () => movePaddle("right"));
+/* === BOOT SCREEN === */
+.ascii-boot {
+  text-align: left;
+  white-space: pre;
+  font-size: 14px;
+  padding: 20px;
+  font-family: monospace;
+  color: black;
+}
+
+#boot-screen {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem;
+}
+
+#boot-prompt {
+  font-size: 14px;
+  margin-top: 20px;
+  opacity: 0.7;
+}
+
+.blink {
+  animation: blink 1s step-start infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
