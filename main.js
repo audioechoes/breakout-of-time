@@ -1,3 +1,4 @@
+// === BOOT SCREEN ===
 const bootLines = [
   "Loading... Unpacking Ennui █▒▒▒",
   "[OK] Initialising Toasting Module... Crumpets warmed",
@@ -16,7 +17,7 @@ let currentLine = 0;
 function showNextBootLine() {
   if (currentLine < bootLines.length) {
     bootPre.textContent += bootLines[currentLine++] + "\n";
-    setTimeout(showNextBootLine, 600);
+    setTimeout(showNextBootLine, 500);
   } else {
     bootPrompt.classList.remove("hidden");
     document.addEventListener("keydown", startGame);
@@ -31,27 +32,28 @@ function startGame() {
   document.removeEventListener("keydown", startGame);
   document.removeEventListener("click", startGame);
   document.removeEventListener("touchstart", startGame);
-  initGame(); // Call main game init
+  initGame();
 }
 
 showNextBootLine();
 
+// === GAME ===
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-const width = canvas.width = window.innerWidth;
-const height = canvas.height = window.innerHeight;
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
 let paddle = {
-  x: width / 2 - 60,
-  y: height - 50,
+  x: canvas.width / 2 - 60,
+  y: canvas.height - 50,
   w: 120,
   h: 30,
   vx: 8
 };
 
 let ball = {
-  x: width / 2,
+  x: canvas.width / 2,
   y: paddle.y - 10,
   radius: 8,
   speedX: 5,
@@ -59,6 +61,7 @@ let ball = {
   moving: false
 };
 
+let balls = [ball];
 let blocks = [];
 let blockCols = 8;
 let blockRows = 4;
@@ -66,7 +69,6 @@ let blockWidth = 100;
 let blockHeight = 30;
 let blockPadding = 20;
 let blockOffsetTop = 100;
-let blockOffsetLeft = 60;
 
 let lives = 3;
 let timeLeft = 30;
@@ -74,17 +76,19 @@ let gameStarted = false;
 let currentLevel = 0;
 let maxLevels = 3;
 let multiballTriggered = false;
-let balls = [ball];
 let gamePaused = false;
 
 const overlay = document.getElementById("overlay");
 
 function createBlocks() {
   blocks = [];
+  const totalWidth = blockCols * blockWidth + (blockCols - 1) * blockPadding;
+  const startX = (canvas.width - totalWidth) / 2;
+
   for (let c = 0; c < blockCols; c++) {
     for (let r = 0; r < blockRows; r++) {
-      const blockX = c * (blockWidth + blockPadding) + blockOffsetLeft;
-      const blockY = r * (blockHeight + blockPadding) + blockOffsetTop;
+      const blockX = startX + c * (blockWidth + blockPadding);
+      const blockY = blockOffsetTop + r * (blockHeight + blockPadding);
       blocks.push({ x: blockX, y: blockY, status: 1 });
     }
   }
@@ -93,8 +97,7 @@ function createBlocks() {
 function drawPaddle() {
   ctx.fillStyle = "black";
   const label = `${Math.max(0, Math.floor(timeLeft))}s`;
-  const textWidth = ctx.measureText(label).width;
-  const boxWidth = Math.max(paddle.w, textWidth + 40);
+  const boxWidth = paddle.w;
   ctx.fillRect(paddle.x, paddle.y, boxWidth, paddle.h);
   ctx.fillStyle = "white";
   ctx.font = "16px monospace";
@@ -123,7 +126,7 @@ function movePaddle(dir) {
   if (dir === "left") {
     paddle.x = Math.max(0, paddle.x - paddle.vx);
   } else {
-    paddle.x = Math.min(width - paddle.w, paddle.x + paddle.vx);
+    paddle.x = Math.min(canvas.width - paddle.w, paddle.x + paddle.vx);
   }
 }
 
@@ -134,15 +137,13 @@ function moveBalls() {
     b.x += b.speedX;
     b.y += b.speedY;
 
-    // Bounce off walls
-    if (b.x + b.radius > width || b.x - b.radius < 0) {
+    if (b.x + b.radius > canvas.width || b.x - b.radius < 0) {
       b.speedX *= -1;
     }
     if (b.y - b.radius < 0) {
       b.speedY *= -1;
     }
 
-    // Bounce off paddle
     if (
       b.y + b.radius > paddle.y &&
       b.x > paddle.x &&
@@ -152,8 +153,7 @@ function moveBalls() {
       paddleShake();
     }
 
-    // Missed the paddle
-    if (b.y - b.radius > height) {
+    if (b.y - b.radius > canvas.height) {
       balls.splice(index, 1);
       if (balls.length === 0) {
         lives--;
@@ -162,7 +162,6 @@ function moveBalls() {
       }
     }
 
-    // Block collision
     blocks.forEach(block => {
       if (block.status === 1) {
         if (
@@ -218,10 +217,10 @@ function nextLevel() {
   if (currentLevel >= maxLevels) return endGame(true);
 
   overlay.classList.remove("hidden");
-  overlay.innerHTML = `"Well done, I suppose."<br><br>Next level in 4...`;
+  overlay.innerHTML = `"Well done. That says more about you than me."<br><br>Next level in 4...`;
   let countdown = 3;
   const interval = setInterval(() => {
-    overlay.innerHTML = `"Well done, I suppose."<br><br>Next level in ${countdown}...`;
+    overlay.innerHTML = `"Still here? Okay then."<br><br>Next level in ${countdown}...`;
     countdown--;
     if (countdown < 0) {
       clearInterval(interval);
@@ -245,14 +244,18 @@ function endGame(won = false) {
   gamePaused = true;
   overlay.classList.remove("hidden");
   overlay.innerHTML = won
-    ? `You beat it. Somehow.<br><br><a href="https://audioechoes.com" target="_blank">Go do something better</a>`
-    : `You're out of lives and/or time.<br><br><a href="https://audioechoes.com" target="_blank">Reflect here</a>`;
+    ? `You beat it. Somehow.<br><br><a href="https://audioechoes.com" target="_blank">Go stare at something else</a>`
+    : `Out of time and/or lives.<br><br><a href="https://audioechoes.com" target="_blank">Just… leave</a>`;
+}
+
+function drawBalls() {
+  balls.forEach(drawBall);
 }
 
 function gameLoop() {
   if (!gameStarted || gamePaused) return requestAnimationFrame(gameLoop);
 
-  ctx.clearRect(0, 0, width, height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   drawPaddle();
   drawBalls();
@@ -267,62 +270,19 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
-function drawBalls() {
-  balls.forEach(drawBall);
-}
-
-// Boot-up to game transition
-setTimeout(() => {
-  document.getElementById("boot-screen").classList.add("hidden");
-  document.getElementById("game").classList.remove("hidden");
-  gameStarted = true;
+function initGame() {
   createBlocks();
   resetBall();
+  gameStarted = true;
   gameLoop();
-}, 1500);
+}
 
-// Controls
+// Keyboard + Touch Controls
 document.addEventListener("keydown", e => {
   if (e.key === "ArrowLeft") movePaddle("left");
   if (e.key === "ArrowRight") movePaddle("right");
   if (e.key === " " || e.key === "Enter") balls.forEach(b => (b.moving = true));
 });
 
-// Touch
 document.getElementById("left-btn").addEventListener("touchstart", () => movePaddle("left"));
 document.getElementById("right-btn").addEventListener("touchstart", () => movePaddle("right"));
-/* === BOOT SCREEN === */
-.ascii-boot {
-  text-align: left;
-  white-space: pre;
-  font-size: 14px;
-  padding: 20px;
-  font-family: monospace;
-  color: black;
-}
-
-#boot-screen {
-  position: fixed;
-  inset: 0;
-  background: transparent;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 2rem;
-}
-
-#boot-prompt {
-  font-size: 14px;
-  margin-top: 20px;
-  opacity: 0.7;
-}
-
-.blink {
-  animation: blink 1s step-start infinite;
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
-}
