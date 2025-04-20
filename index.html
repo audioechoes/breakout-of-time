@@ -4,12 +4,109 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>(break)out of time</title>
-  <link rel="stylesheet" href="style.css" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: monospace;
+      color: black;
+    }
+
+    body {
+      background: white;
+      overflow: hidden;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .ascii-boot {
+      text-align: left;
+      white-space: pre;
+      font-size: 14px;
+      padding: 20px;
+    }
+
+    #boot-screen {
+      position: fixed;
+      inset: 0;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    #boot-prompt {
+      font-size: 14px;
+      margin-top: 20px;
+      opacity: 0.7;
+      background: rgba(0, 0, 0, 0.05);
+      padding: 5px 10px;
+      border-radius: 4px;
+    }
+
+    .blink {
+      animation: blink 1s step-start infinite;
+    }
+
+    @keyframes blink {
+      50% {
+        opacity: 0;
+      }
+    }
+
+    #gameCanvas {
+      display: block;
+      margin: 0 auto;
+      background: transparent;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #touch-controls {
+      position: absolute;
+      bottom: 10px;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 30px;
+      z-index: 10;
+    }
+
+    #touch-controls button {
+      background: black;
+      color: white;
+      font-size: 24px;
+      padding: 10px 20px;
+      border: none;
+      opacity: 0.7;
+      display: none;
+    }
+
+    @media (pointer: coarse) {
+      #touch-controls button {
+        display: inline-block;
+      }
+    }
+
+    #overlay {
+      position: absolute;
+      top: 40%;
+      width: 100%;
+      text-align: center;
+      font-size: 16px;
+      background: transparent;
+      padding: 20px;
+      pointer-events: none;
+    }
+  </style>
 </head>
 <body>
   <div id="boot-screen">
-    <pre id="boot-lines" class="ascii-boot">
-    </pre>
+    <pre id="boot-lines" class="ascii-boot"></pre>
     <p id="boot-prompt" class="hidden blink">>> PRESS ANYTHING TO CONTINUE</p>
   </div>
 
@@ -22,6 +119,258 @@
     <div id="overlay" class="hidden"></div>
   </div>
 
-  <script src="main.js"></script>
+  <script>
+    const bootLines = [
+      "Loading... Unpacking Ennui █▒▒▒",
+      "[OK] Initialising Toasting Module... Crumpets warmed",
+      "[WARN] Tuning sarcasm levels... dangerously high",
+      "[OK] Mounting Tea Protocol v2.1... stirred, not shaken",
+      "[OK] Generating existential dread table… done",
+      "[OK] Calibrating disappointment metrics... success",
+      "[BOOT] (break)out of time loaded."
+    ];
+
+    const bootPre = document.getElementById("boot-lines");
+    const bootPrompt = document.getElementById("boot-prompt");
+
+    let currentLine = 0;
+
+    function showNextBootLine() {
+      if (currentLine < bootLines.length) {
+        bootPre.textContent += bootLines[currentLine++] + "\n";
+        setTimeout(showNextBootLine, 500);
+      } else {
+        bootPrompt.classList.remove("hidden");
+        document.addEventListener("keydown", startGame);
+        document.addEventListener("click", startGame);
+        document.addEventListener("touchstart", startGame);
+      }
+    }
+
+    function startGame() {
+      document.getElementById("boot-screen").classList.add("hidden");
+      document.getElementById("game").classList.remove("hidden");
+      document.removeEventListener("keydown", startGame);
+      document.removeEventListener("click", startGame);
+      document.removeEventListener("touchstart", startGame);
+      initGame();
+    }
+
+    showNextBootLine();
+
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let paddle = {
+      x: canvas.width / 2 - 60,
+      y: canvas.height - 50,
+      w: 120,
+      h: 30,
+      vx: 8
+    };
+
+    function createBall(x, y, speedX = 5, speedY = -5) {
+      return {
+        x,
+        y,
+        radius: 8,
+        speedX,
+        speedY,
+        moving: false
+      };
+    }
+
+    let balls = [];
+    let blocks = [];
+    let lives = 3;
+    let timeLeft = 30;
+    let gameStarted = false;
+    let currentLevel = 0;
+    let maxLevels = 3;
+    let multiballTriggered = false;
+    let gamePaused = false;
+
+    const overlay = document.getElementById("overlay");
+
+    function createBlocks() {
+      blocks = [];
+      const cols = 8, rows = 4, width = 100, height = 30, pad = 20;
+      const offsetTop = 100;
+      const totalWidth = cols * width + (cols - 1) * pad;
+      const startX = (canvas.width - totalWidth) / 2;
+
+      for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+          blocks.push({
+            x: startX + c * (width + pad),
+            y: offsetTop + r * (height + pad),
+            status: 1
+          });
+        }
+      }
+    }
+
+    function drawPaddle() {
+      ctx.fillStyle = "black";
+      ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+      ctx.fillStyle = "white";
+      ctx.font = "16px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`${Math.max(0, Math.floor(timeLeft))}s`, paddle.x + paddle.w / 2, paddle.y + 20);
+    }
+
+    function drawBall(ball) {
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fillStyle = "black";
+      ctx.fill();
+      ctx.closePath();
+    }
+
+    function moveBalls() {
+      balls.forEach((b, i) => {
+        if (!b.moving) return;
+
+        b.x += b.speedX;
+        b.y += b.speedY;
+
+        if (b.x + b.radius > canvas.width || b.x - b.radius < 0) b.speedX *= -1;
+        if (b.y - b.radius < 0) b.speedY *= -1;
+
+        if (b.y + b.radius > paddle.y && b.x > paddle.x && b.x < paddle.x + paddle.w) {
+          b.speedY *= -1;
+          // Add horizontal deflection based on hit position
+          let hitPos = (b.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+          b.speedX = hitPos * 5;
+          paddleShake();
+        }
+
+        if (b.y - b.radius > canvas.height) {
+          balls.splice(i, 1);
+          if (balls.length === 0) {
+            lives--;
+            if (lives <= 0) return endGame();
+            resetBall();
+          }
+        }
+
+        blocks.forEach(block => {
+          if (block.status === 1 &&
+              b.x > block.x && b.x < block.x + 100 &&
+              b.y > block.y && b.y < block.y + 30) {
+            block.status = 0;
+            b.speedY *= -1;
+            timeLeft += 1;
+            if (!multiballTriggered && Math.random() < 0.2) triggerMultiball();
+          }
+        });
+      });
+    }
+
+    function triggerMultiball() {
+      multiballTriggered = true;
+      const newBall = createBall(paddle.x + paddle.w / 2 + 10, paddle.y - 10, -5, -5);
+      newBall.moving = true;
+      balls.push(newBall);
+    }
+
+    function drawBlocks() {
+      blocks.forEach(block => {
+        if (block.status === 1) {
+          ctx.fillStyle = "black";
+          ctx.fillRect(block.x, block.y, 100, 30);
+        }
+      });
+    }
+
+    function paddleShake() {
+      paddle.x += Math.random() < 0.5 ? -2 : 2;
+      setTimeout(() => {
+        paddle.x -= Math.random() < 0.5 ? -2 : 2;
+      }, 60);
+    }
+
+    function drawLives() {
+      ctx.font = "16px monospace";
+      ctx.fillStyle = "black";
+      ctx.fillText("\u2665".repeat(lives), 20, 30);
+    }
+
+    function resetBall() {
+      balls = [createBall(paddle.x + paddle.w / 2, paddle.y - 10)];
+    }
+
+    function checkLevelComplete() {
+      if (blocks.every(b => b.status === 0)) nextLevel();
+    }
+
+    function nextLevel() {
+      gamePaused = true;
+      currentLevel++;
+      if (currentLevel >= maxLevels) return endGame(true);
+
+      overlay.classList.remove("hidden");
+      overlay.innerHTML = `"Well done. That says more about you than me."<br><br>Next level in 4...`;
+      let countdown = 3;
+      const interval = setInterval(() => {
+        overlay.innerHTML = `"Still here? Okay then."<br><br>Next level in ${countdown}...`;
+        countdown--;
+        if (countdown < 0) {
+          clearInterval(interval);
+          overlay.classList.add("hidden");
+          multiballTriggered = false;
+          resetBall();
+          createBlocks();
+          gamePaused = false;
+        }
+      }, 1000);
+    }
+
+    function endGame(won = false) {
+      gamePaused = true;
+      overlay.classList.remove("hidden");
+      overlay.innerHTML = won
+        ? `You beat it. Somehow.<br><br><a href="https://audioechoes.com" target="_blank">Go stare at something else</a>`
+        : `Out of time and/or lives.<br><br><a href="https://audioechoes.com" target="_blank">Just… leave</a>`;
+    }
+
+    function gameLoop() {
+      if (!gameStarted || gamePaused) return requestAnimationFrame(gameLoop);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawPaddle();
+      balls.forEach(drawBall);
+      drawBlocks();
+      drawLives();
+      moveBalls();
+      checkLevelComplete();
+      timeLeft -= 0.016;
+      if (timeLeft <= 0) endGame();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function initGame() {
+      createBlocks();
+      resetBall();
+      gameStarted = true;
+      gameLoop();
+    }
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "ArrowLeft") movePaddle("left");
+      if (e.key === "ArrowRight") movePaddle("right");
+      if (e.key === " " || e.key === "Enter") balls.forEach(b => b.moving = true);
+      if (e.key.toLowerCase() === "p") gamePaused = !gamePaused;
+    });
+
+    function movePaddle(dir) {
+      if (dir === "left") paddle.x = Math.max(0, paddle.x - paddle.vx);
+      else paddle.x = Math.min(canvas.width - paddle.w, paddle.x + paddle.vx);
+    }
+
+    document.getElementById("left-btn").addEventListener("touchstart", () => movePaddle("left"));
+    document.getElementById("right-btn").addEventListener("touchstart", () => movePaddle("right"));
+  </script>
 </body>
 </html>
